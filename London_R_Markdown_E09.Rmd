@@ -1,0 +1,372 @@
+# Practical 2
+
+---
+title: "London_Boroughs_Work"
+author: "Burhan"
+date: "2023-10-11"
+output: html_document
+---
+
+# Loading Packages
+
+```{r}
+library(sf)
+library(tmap) 
+library(tmaptools)
+library(RSQLite)
+library(tidyverse)
+library(dplyr)
+library(janitor)
+library(rJava)
+library(OpenStreetMap)
+library(NLP)
+```
+
+## Loading Spatial File (as Shape File .shp) & Data File (as Comma Separated Value File .csv)
+
+```{r}
+shape_lon <- st_read("C:/Users/Burhan/Documents/GIS_TERM1_UCL/R_Directory/R_Tasks_UCL/Data/Local_Authority_Districts_(December_2015)_Boundaries/Local_Authority_Districts_(December_2015)_Boundaries/Local_Authority_Districts_(December_2015)_Boundaries.shp")
+
+mycsv_lon <- read_csv("C:/Users/Burhan/Documents/GIS_TERM1_UCL/R_Directory/R_Tasks_UCL/Data/ward-profiles-excel-version.csv",locale =locale(encoding="latin1"),na="n/a")
+```
+
+## Getting a glimpse of the data type in both of my files (i.e. rows, columns, type of data, etc)
+
+```{r}
+# glimpse(mycsv_lon)
+# # it only gives you a view of data and cannot create a data set out of it
+# glimpse(shape_lon)
+```
+
+## Checking the summarise function of dplyr vs glimpse used above
+
+```{r}
+# class(mycsv_lon)
+# X <- mycsv_lon %>% 
+#   summarise_all(class) %>%
+#   pivot_longer(everything(), 
+#                names_to="All_variables", 
+#                values_to="Variable_class")
+# X
+```
+
+## Checking the first 10 column names using head & colnames functions
+
+```{r}
+# mycsv_lon %>% 
+#   colnames() %>% 
+#   head(10)
+```
+
+## Using Janitor for cleaning the data it replaces all spaces with "\_" and turns all data in shortcase
+
+```{r}
+mycsv_clean <- clean_names(mycsv_lon)
+```
+
+## Checking what janitor did to thr column names
+
+```{r}
+# mycsv_clean %>% 
+#   colnames() %>% 
+#   head(10)
+```
+
+## Plotting the shape file to check the geometry
+
+```{r}
+# shape_lon %>% 
+#   st_geometry() %>%
+#   plot(.)
+```
+
+## Adding the attributes of Data File to Spatial File by comparing the 'lad15cd' column in spatial file with the 'new_code' column in data file
+
+```{r}
+shape_lon <- shape_lon%>%
+  merge(.,
+        mycsv_clean,
+        by.x="lad15cd", 
+        by.y="new_code")
+```
+
+## Plotting the map by using the "Paid Employee" attribute
+
+```{r}
+# tmap_mode("plot")
+# shape_lon %>% 
+#   qtm(., fill = "population_2015")
+```
+
+## Plotting with ggplot2
+
+```{r}
+ggplot(shape_lon) +
+  geom_sf(aes(fill = children_aged_0_15_2015)) +
+  scale_fill_viridis_c(name = "children_2015") +
+  labs(title = "London Boroughs Map", fill = "Population") +
+  theme_minimal() +
+  theme(legend.position = "right")
+```
+
+## Now get only London Boroughs from mycsv_clean
+
+```{r}
+LondonBoroughs<- mycsv_clean %>% 
+  filter(str_detect(`new_code`, "^E09"))
+```
+
+## checking whether the filter of E09 worked
+
+```{r}
+# LondonBoroughs %>% 
+#   dplyr::select(`ward_name`) %>%
+#   print()
+```
+
+## As City of London is coming twice so only keeping distint values
+
+```{r}
+LondonBoroughs<-LondonBoroughs %>%
+  distinct()
+```
+
+## Now manually selecting the columns we require from the big spreadsheet
+
+```{r}
+LondonBoroughs_dplyrcols<-LondonBoroughs %>%
+  dplyr::select(c(1,19,20,21))
+```
+
+## Trying the same with contains dplyr tool
+
+```{r}
+LondonBoroughs_contains<-LondonBoroughs %>% 
+  dplyr::select(contains("ward_name"),
+                contains("expectancy"), 
+         contains("obese_2011_12_to_2013_14")) 
+```
+
+# Making a new data set with two new columns which we obtain from the LondonBorough data set
+
+```{r}
+Life_expectancy <- LondonBoroughs %>%
+  mutate(AVERAGELIFEEXPECTANCY=(female_life_expectancy_2009_13+male_life_expectancy_2009_13)/2)%>%
+  mutate(NORMALISEDLIFEEXPECTANCY= AVERAGELIFEEXPECTANCY /
+           mean(AVERAGELIFEEXPECTANCY))
+#new column with average of male and female life expectancy
+```
+
+## Checking whether the columns are added in the new dataset.
+
+```{r}
+# glimpse(Life_expectancy)
+```
+
+## Now only selecting the columns which we required.
+
+```{r}
+Life_expectancy %>% 
+dplyr::select(new_code, ward_name,AVERAGELIFEEXPECTANCY,NORMALISEDLIFEEXPECTANCY)%>%
+  arrange(desc(NORMALISEDLIFEEXPECTANCY))
+```
+
+## We can also check the top 5 rows of the data using
+
+```{r}
+#top of data
+# slice_head(Life_expectancy, n=5)
+```
+
+## We can also check the bottom 5 rows of the data using
+
+```{r}
+#top of data
+# slice_tail(Life_expectancy, n=5)
+```
+
+## Now we use dplyr to check the data above and below UK Average of 81.16 and then assign boroughs as per that criteria "above average" or "below average"
+
+```{r}
+Life_expectancy2 <- Life_expectancy %>%
+  mutate(UKcompare = case_when(AVERAGELIFEEXPECTANCY>81.16 ~ "above UK average",
+                               TRUE ~ "below UK average"))
+# Life_expectancy2
+```
+
+# Now we want to summarize this by creating a new data set and grouping it by "above or below average criteria and finally summarizing it by obtaining max-min difference, count and average.
+
+```{r}
+Life_expectancy2_group <- Life_expectancy2 %>%
+  mutate(UKdiff = AVERAGELIFEEXPECTANCY-81.16) %>%
+  group_by(UKcompare)%>%
+  summarise(range=max(UKdiff)-min(UKdiff), count=n(), Average=mean(UKdiff))
+
+# Life_expectancy2_group
+```
+
+## Further analysis to obtain diffrence by years (IMPORTANT)
+
+```{r}
+Life_expectancy3 <- Life_expectancy %>%
+  mutate(UKdiff = AVERAGELIFEEXPECTANCY-81.16)%>%
+  mutate(across(where(is.numeric), round, 3))%>%
+  mutate(across(UKdiff, round, 0))%>%
+  mutate(UKcompare = case_when(AVERAGELIFEEXPECTANCY >= 81 ~ 
+                                 str_c("equal or above UK average by",
+                                       UKdiff, 
+                                       "years", 
+                                       sep=" "), 
+                               TRUE ~ str_c("below UK average by",
+                                            UKdiff,
+                                            "years",
+                                            sep=" ")))%>%
+  group_by(UKcompare)%>%
+  summarise(count=n())
+```
+
+```{r}
+Life_expectancy4 <- Life_expectancy %>%
+  mutate(UKdiff = AVERAGELIFEEXPECTANCY-81.16)%>%
+  mutate(across(is.numeric, round, 3))%>%
+  mutate(across(UKdiff, round, 0))
+```
+
+## Now we will go for plotting
+
+```{r}
+plot(LondonBoroughs$male_life_expectancy_2009_13,
+     LondonBoroughs$percent_children_in_reception_year_who_are_obese_2011_12_to_2013_14)
+```
+
+```{r}
+# install.packages("maptools")
+# install.packages(c("classInt", "tmap"))
+# install.packages(c("RColorBrewer", "sp", "rgeos", 
+#                    "tmaptools", "sf", "downloader", "rgdal", 
+#                    "geojsonio"))
+# install.packages("RgoogleMaps")
+# install.packages("Openstreetmaps")
+```
+
+```{r}
+#library(maptools)
+library(RColorBrewer)
+library(classInt)
+library(sp)
+#library(rgeos)
+library(sf)
+#library(rgdal)
+library(geojsonio)
+library(ggplot2)
+library(viridis)
+library(RgoogleMaps)
+```
+
+## Saving the shape file in LondonMap and removing duplicates
+
+```{r}
+LondonMap <- shape_lon %>%
+  filter(str_detect(`lad15cd`, "^E09")) %>%
+  distinct()
+```
+
+```{r}
+qtm(LondonMap)
+```
+
+```{r}
+LondonMap <- LondonMap%>%
+  left_join(., 
+            Life_expectancy4,
+            by = c("lad15cd" = "new_code"))
+```
+
+```{r}
+# palette_ucl <- c("#500778", "#e0ecf4","#FFFFFF","#8856a7")
+```
+
+```{r}
+ggplot(LondonMap) +
+  geom_sf(aes(fill =rate_of_job_seekers_allowance_jsa_claimants_2015.x)) +
+  scale_fill_viridis_c(name = "Rate of Claims") +
+  labs(title = "London Map- JSA -2015") +
+  theme_minimal() +
+  theme(legend.position = "right")
+```
+## Let us try same with tmaptools qtm tool
+
+```{r}
+library(tmap)
+library(tmaptools)
+library(sf)
+tmap_mode("plot")
+qtm(LondonMap, 
+    fill = "rate_of_job_seekers_allowance_jsa_claimants_2015.x")
+```
+## Add a base map now & save it in tmaplondon
+```{r}
+tmaplondon <- LondonMap %>%
+  st_bbox(.) %>% 
+  tmaptools::read_osm(., type = "osm", zoom = NULL)
+```
+
+## Use a basemap with our plot 
+
+```{r}
+tmap_mode("plot")
+tm_shape(tmaplondon)+
+tm_rgb()+
+tm_shape(LondonMap) + 
+tm_polygons("rate_of_job_seekers_allowance_jsa_claimants_2015.x", 
+        style="jenks",
+        palette="YlOrBr",
+        midpoint=NA,
+        title="Rate per 1,000 people",
+        alpha = 0.5) + 
+  tm_compass(position = c("left", "bottom"),type = "arrow") + 
+  tm_scale_bar(position = c("left", "bottom")) +
+  tm_layout(title = "Job seekers' Allowance Claimants", legend.position = c("right", "bottom"))
+```
+## Making a new map with the help of inner join with our analysed data set i.e. Life_expectancy4 & check which columns got added to our original file shape_lon
+
+```{r}
+Life_expectancy4map <- shape_lon %>%
+    inner_join(., 
+            Life_expectancy4,
+            by = c("lad15cd"="new_code"))%>%  #first keep (shape file column = excel sheet column i.e. Life_expectancy4 here)
+    distinct(.,lad15cd, 
+           .keep_all = TRUE)
+```
+
+## Plotting final result
+
+```{r}
+tmap_mode("plot")
+      tm_shape(tmaplondon)+
+      tm_rgb()+
+      tm_shape(Life_expectancy4map) +
+      tm_polygons("UKdiff", 
+        style="pretty",
+        palette="Greens",
+        midpoint=NA,
+        title="Number of years",
+        alpha = 0.5) + 
+       tm_compass(position = c("left", "bottom"),type = "arrow") + 
+       tm_scale_bar(position = c("left", "bottom")) +
+       tm_layout(title = "Difference in life expectancy",legend.position = c("right", "bottom"))
+
+```
+# Same with ggplot 
+```{r}
+# l <-ggplot(LondonMap) +
+#   geom_sf(aes(fill =UKdiff)) +
+#   scale_fill_viridis_c(name = "UK Difference(Borough vs UK)") +
+#   labs(title = "Difference in Life Expectancy") +
+#   theme_minimal() +
+#   theme(legend.position = "bottom")
+
+l
+```
+
+
