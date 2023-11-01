@@ -1,0 +1,116 @@
+# Week 4
+
+---
+title: "Gender Inequality Index"
+author: "Burhan"
+date: "2023-10-31"
+output: html_document
+---
+
+# Load Packages
+
+```{r}
+library(tidyverse)
+library(sf)
+library(here)
+library(janitor)
+library(countrycode)
+```
+
+## Loading Spatial File (as Shape File .shp/.geojson) & Data File (as Comma Separated Value File .csv)
+
+```{r}
+
+world_map <- st_read (here::here("Data/World_Countries_Generalized.geojson"))
+
+
+HDI_csv <- read_csv(here::here("Data", "HDR21-22_Composite_indices_complete_time_series.csv"),
+                       locale = locale(encoding = "latin1"),
+                       na = "", skip=0)
+```
+
+## Checking the data type in both of my files (i.e. rows, columns, type of data, etc)
+
+```{r}
+head(world_map)
+head(HDI_csv)
+```
+
+## Plotting the shape file to check the geometry
+
+```{r}
+world_map %>% 
+  st_geometry() %>%
+  plot()
+```
+
+## Cleaning both the files
+
+```{r}
+HDI_myclean_csv <- clean_names(HDI_csv)
+world_map <- clean_names(world_map)
+```
+
+## Adding the three code country code data to our geometry file using countrycode
+
+```{r}
+world_map_iso <- world_map %>% 
+  mutate(iso_country_code = countrycode(country, origin = 'country.name', destination = 'iso3c'))
+head(world_map_iso)
+```
+
+## Left join the two data files using the iso codes available in both data sets
+
+```{r}
+final_join <- world_map_iso %>% 
+  left_join(., 
+            HDI_myclean_csv,
+            by = c("iso_country_code" = "iso3")) #use shape file column = csv column
+
+```
+
+## Now make a new column in the data set by obtaining the difference in Gender Inequality Index from 2019 to 2010
+
+```{r}
+final_join_diff <- final_join %>% 
+  mutate(difference=gii_2019-gii_2010)
+```
+
+## Plot the data
+
+```{r}
+plot1 <-
+  ggplot(data = final_join_diff) +
+  geom_sf(aes(fill = difference)) +
+  scale_fill_viridis_c(name = "Gender Inequality Index Diff") +
+  labs(title = "Gender Inequality b/w 2010 and 2019") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+plot1
+```
+
+## Save Plot as image
+
+image modification before saving
+
+```{r}
+# change the theme to save
+save_map <- plot1 + 
+  theme(
+    text = element_text(
+      size = 20,
+    ),
+    plot.title = element_text(
+      size = 20,
+    ),
+    legend.title = element_text(size = 20),
+  ) 
+  
+ggsave(
+  "Images/Result_GII.png",
+  plot = save_map,
+  height = 35,
+  width = 35)
+
+```
