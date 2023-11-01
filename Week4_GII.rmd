@@ -90,9 +90,7 @@ plot1 <-
 plot1
 ```
 
-## Save Plot as image
-
-image modification before saving
+## Save to image
 
 ```{r}
 # change the theme to save

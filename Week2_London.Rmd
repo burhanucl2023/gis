@@ -1,4 +1,4 @@
-# Practical 2
+# Week 2 (Practice)
 
 ---
 title: "London_Boroughs_Work"
@@ -20,6 +20,14 @@ library(janitor)
 library(rJava)
 library(OpenStreetMap)
 library(NLP)
+library(RColorBrewer)
+library(classInt)
+library(sp)
+library(sf)
+library(geojsonio)
+library(ggplot2)
+library(viridis)
+library(RgoogleMaps)
 ```
 
 ## Loading Spatial File (as Shape File .shp) & Data File (as Comma Separated Value File .csv)
@@ -237,30 +245,6 @@ Life_expectancy4 <- Life_expectancy %>%
 ```{r}
 plot(LondonBoroughs$male_life_expectancy_2009_13,
      LondonBoroughs$percent_children_in_reception_year_who_are_obese_2011_12_to_2013_14)
-```
-
-```{r}
-# install.packages("maptools")
-# install.packages(c("classInt", "tmap"))
-# install.packages(c("RColorBrewer", "sp", "rgeos", 
-#                    "tmaptools", "sf", "downloader", "rgdal", 
-#                    "geojsonio"))
-# install.packages("RgoogleMaps")
-# install.packages("Openstreetmaps")
-```
-
-```{r}
-#library(maptools)
-library(RColorBrewer)
-library(classInt)
-library(sp)
-#library(rgeos)
-library(sf)
-#library(rgdal)
-library(geojsonio)
-library(ggplot2)
-library(viridis)
-library(RgoogleMaps)
 ```
 
 ## Saving the shape file in LondonMap and removing duplicates
