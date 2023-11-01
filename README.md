@@ -1,1 +1,4 @@
-# gis
+- 👋 Hi, I’m @burhanucl2023
+- 👀 I’m interested in the science of the cities, transport planning & sustainability
+- 🌱 I’m currently enrolled in MSc Urban Spatial Science
+- 📫 How to reach me : https://www.linkedin.com/in/burhanahmadwani/
